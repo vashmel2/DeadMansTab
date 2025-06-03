@@ -1,7 +1,7 @@
 import { Handler } from '@netlify/functions';
 import { Resend } from 'resend';
 
-const resend = new Resend('re_PH7BMZhb_BnRuzhD6TkTshP36iVyZcBZ9');
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,7 +10,6 @@ const corsHeaders = {
 };
 
 export const handler: Handler = async (event) => {
-  // Handle CORS preflight requests
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
@@ -28,66 +27,63 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    const { email, token } = JSON.parse(event.body || '{}');
+    const parsedBody = JSON.parse(event.body || '{}');
+    const { email, purgeAfterDays } = parsedBody;
 
-    if (!email || !token) {
+
+    if (!email || !purgeAfterDays) {
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'Missing email or token' })
+        body: JSON.stringify({ error: 'Email and purgeAfterDays are required' })
       };
     }
 
-    const verificationLink = `${event.headers.origin || 'https://teal-pithivier-aaaf92.netlify.app'}/verify?token=${token}`;
+    const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+    if (!emailRegex.test(email)) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Invalid email format' })
+      };
+    }
 
-    const { data, error } = await resend.emails.send({
-      from: 'Email Link Sender <noreply@resend.dev>',
+    // Send the actual verification email using Resend
+    const { error } = await resend.emails.send({
+      from: 'Deadman’s Tab <noreply@resend.dev>',
       to: email,
-      subject: 'Verify Your Email to Prevent the Purge',
+      subject: 'Verify Your Email – Deadman’s Tab',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #2563eb;">Email Verification Required</h2>
-          <p>Hello!</p>
-          <p>Thank you for using Email Link Sender. To ensure the security of your account and prevent automatic purging, please verify your email address by clicking the button below:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${verificationLink}" 
-               style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-              Verify Email Address
+        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #ef4444;">⚠️ Final Warning!</h2>
+          <p>We've noticed inactivity on your browser. If you don’t click the button below, your tabs and history will be wiped in <strong>${purgeAfterDays} days</strong>.</p>
+          <p style="margin: 20px 0;">
+            <a href="https://deadmanstabdev.netlify.app/verify?email=${encodeURIComponent(email)}" 
+              style="display: inline-block; padding: 12px 20px; background-color: #10b981; color: white; text-decoration: none; border-radius: 6px;">
+              Click to Keep Everything Safe
             </a>
-          </div>
-          <p style="color: #666;">This verification link will expire in 24 hours.</p>
-          <p style="color: #666;">If you didn't request this verification, please ignore this email.</p>
-          <hr style="border: 1px solid #eee; margin: 20px 0;">
-          <p style="color: #666; font-size: 12px;">
-            This is an automated message from Email Link Sender. Please do not reply to this email.
           </p>
+          <p>If this wasn’t you, you can ignore this email.</p>
         </div>
       `
     });
 
     if (error) {
-      console.error('Resend error:', error);
-      return {
-        statusCode: 500,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'Failed to send verification email' })
-      };
+      console.error('Resend email error:', error);
+      throw new Error('Failed to send verification email');
     }
 
     return {
       statusCode: 200,
       headers: corsHeaders,
-      body: JSON.stringify({ 
-        message: 'Verification email sent successfully',
-        id: data?.id 
-      })
+      body: JSON.stringify({ success: true })
     };
   } catch (err) {
-    console.error('Unexpected error:', err);
+    console.error('Error in sendVerificationEmail:', err);
     return {
       statusCode: 500,
       headers: corsHeaders,
-      body: JSON.stringify({ error: 'Internal server error' })
+      body: JSON.stringify({ error: 'Internal Server Error' })
     };
   }
 };

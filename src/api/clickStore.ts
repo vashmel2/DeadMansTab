@@ -1,13 +1,18 @@
-import { ClickData } from '../types';
-
-// In-memory storage for click data
-const clickDatabase: ClickData[] = [];
-
-export const logClick = (data: ClickData): void => {
-  clickDatabase.push(data);
-  console.log('[Click Logged]', data);
+type Click = {
+  userId: string;
+  timestamp: string;
+  ip?: string;
 };
 
-export const getClicksByUserId = (userId: string): ClickData[] => {
-  return clickDatabase.filter(click => click.userId === userId);
-};
+const clicks: Record<string, Click[]> = {};
+
+export function logClick(click: Click) {
+  if (!clicks[click.userId]) {
+    clicks[click.userId] = [];
+  }
+  clicks[click.userId].push(click);
+}
+
+export function getClicksByUserId(userId: string) {
+  return clicks[userId] || [];
+}

@@ -1,26 +1,29 @@
-import { UserData } from '../types';
+type User = {
+  email: string;
+  purgeAfterDays: number;
+  registeredAt: string;
+  lastEmailSent?: string;
+};
 
-// In-memory storage for user data
-const userDatabase: UserData[] = [];
+const users: Record<string, User> = {};
 
-export const registerUser = (data: UserData): void => {
-  const existingUserIndex = userDatabase.findIndex(user => user.email === data.email);
-  
-  if (existingUserIndex !== -1) {
-    userDatabase[existingUserIndex] = {
-      ...data,
-      lastEmailSent: new Date().toISOString()
-    };
-  } else {
-    userDatabase.push({
-      ...data,
-      lastEmailSent: new Date().toISOString()
-    });
+export function registerUser({ email, purgeAfterDays }: { email: string; purgeAfterDays: number }) {
+  const userId = btoa(email); // base64 encode as a simple ID
+  users[userId] = {
+    email,
+    purgeAfterDays,
+    registeredAt: new Date().toISOString(),
+    lastEmailSent: new Date().toISOString()
+  };
+  return userId;
+}
+
+export function getUser(userId: string) {
+  return users[userId] || null;
+}
+
+export function updateLastEmailSent(userId: string) {
+  if (users[userId]) {
+    users[userId].lastEmailSent = new Date().toISOString();
   }
-  
-  console.log('[User Registered]', data);
-};
-
-export const getUser = (email: string): UserData | undefined => {
-  return userDatabase.find(user => user.email === email);
-};
+}

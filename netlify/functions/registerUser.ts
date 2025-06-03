@@ -1,21 +1,22 @@
 import { Handler } from '@netlify/functions';
+import { Resend } from 'resend';
 import { UserData } from '../../src/types';
 import { registerUser } from '../../src/api/userStore';
 
-const SERVICE_ID = 'service_aeih9as';
-const TEMPLATE_ID = 'template_jwgjuxe';
-const USER_ID = 'dnos_nCVrmOTXdLKu';
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 export const handler: Handler = async (event) => {
-  // Handle CORS preflight requests
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      }
+      headers: corsHeaders,
+      body: '',
     };
   }
 
@@ -23,96 +24,90 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 405,
       headers: {
-        'Access-Control-Allow-Origin': '*'
+        ...corsHeaders,
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ error: 'Method not allowed' })
+      body: JSON.stringify({ error: 'Method not allowed' }),
     };
   }
 
   try {
     const data: UserData = JSON.parse(event.body || '');
-    
+
     if (!data.email || !data.purgeAfterDays) {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
+          ...corsHeaders,
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ error: 'Email and purgeAfterDays are required' })
+        body: JSON.stringify({ error: 'Email and purgeAfterDays are required' }),
       };
     }
 
-    // Validate email format
     const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
     if (!emailRegex.test(data.email)) {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
+          ...corsHeaders,
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ error: 'Invalid email format' })
+        body: JSON.stringify({ error: 'Invalid email format' }),
       };
     }
 
-    // Validate purgeAfterDays is a positive number
     if (typeof data.purgeAfterDays !== 'number' || data.purgeAfterDays <= 0) {
       return {
         statusCode: 400,
         headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
+          ...corsHeaders,
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ error: 'purgeAfterDays must be a positive number' })
+        body: JSON.stringify({ error: 'purgeAfterDays must be a positive number' }),
       };
     }
 
-    // Register user in the store
+    // Register the user in your local store
     registerUser(data);
 
-    // Send welcome email using EmailJS
-    const emailjsData = {
-      service_id: SERVICE_ID,
-      template_id: TEMPLATE_ID,
-      user_id: USER_ID,
-      template_params: {
-        to_email: data.email,
-        subject: 'Welcome to Email Link Sender',
-        message: `Thank you for registering! Your links will be purged after ${data.purgeAfterDays} days of inactivity.`,
-      }
-    };
-
-    const emailResponse = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(emailjsData)
+    // Send welcome email via Resend
+    const { error } = await resend.emails.send({
+      from: 'Deadman’s Tab <noreply@resend.dev>',
+      to: data.email,
+      subject: 'Welcome to Deadman’s Tab',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #2563eb;">Welcome to Deadman’s Tab</h2>
+          <p>Hi there!</p>
+          <p>You’ve successfully registered. We'll monitor your activity and purge after <strong>${data.purgeAfterDays} days</strong> of inaction if you don’t verify via email.</p>
+          <p>Make sure to click the verification email you’ll be getting next!</p>
+        </div>
+      `,
     });
 
-    if (!emailResponse.ok) {
-      console.error('EmailJS Error:', await emailResponse.text());
+    if (error) {
+      console.error('Resend email error:', error);
       throw new Error('Failed to send welcome email');
     }
-    
+
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
+        ...corsHeaders,
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ success: true })
+      body: JSON.stringify({ success: true }),
     };
   } catch (error) {
     console.error('Error in registerUser:', error);
     return {
-      statusCode: 400,
+      statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
+        ...corsHeaders,
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ error: 'Failed to process request' })
+      body: JSON.stringify({ error: 'Failed to process request' }),
     };
   }
 };
