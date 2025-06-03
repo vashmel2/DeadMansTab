@@ -49,21 +49,24 @@ export const handler: Handler = async (event) => {
     }
 
     const { error } = await resend.emails.send({
-      from: 'Deadman’s Tab <noreply@resend.dev>',
+      from: "Deadman's Tab <noreply@resend.dev>",
       to: email,
-      subject: 'Verify Your Email – Deadman’s Tab',
+      subject: "Verify Your Email – Deadman's Tab",
       html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #ef4444;">⚠️ Final Warning!</h2>
-          <p>We've noticed inactivity on your browser. If you don’t click the button below, your tabs and history will be wiped in <strong>${purgeAfterDays} days</strong>.</p>
-          <p style="margin: 20px 0;">
-            <a href="https://deadmanstabdev.netlify.app/verify?email=${encodeURIComponent(email)}" 
-              style="display: inline-block; padding: 12px 20px; background-color: #10b981; color: white; text-decoration: none; border-radius: 6px;">
-              Click to Keep Everything Safe
-            </a>
-          </p>
-          <p>If this wasn’t you, you can ignore this email.</p>
-        </div>
+        <html>
+          <body style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #ef4444;">⚠️ Final Warning!</h2>
+            <p>We've noticed inactivity on your browser. If you don’t click the button below, your tabs and history will be wiped in <strong>${purgeAfterDays} days</strong>.</p>
+            <p style="margin: 20px 0;">
+              <a href="https://deadmanstabdev.netlify.app/verify?email=${encodeURIComponent(email)}" 
+                 target="_blank" rel="noopener noreferrer"
+                 style="display: inline-block; padding: 12px 20px; background-color: #10b981; color: white; text-decoration: none; border-radius: 6px;">
+                 Click to Keep Everything Safe
+              </a>
+            </p>
+            <p>If this wasn’t you, you can ignore this email.</p>
+          </body>
+        </html>
       `,
     });
 
