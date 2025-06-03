@@ -12,6 +12,8 @@ const corsHeaders = {
 };
 
 export const handler: Handler = async (event) => {
+  console.log("registerUser function hit");  // <-- Log when function is called
+
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
@@ -68,27 +70,32 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // Register user
+    // Register the user in your local store
     registerUser(data);
 
-    // Send welcome email
-    const { error } = await resend.emails.send({
-      from: 'Deadman’s Tab <noreply@resend.dev>',
-      to: data.email,
-      subject: 'Welcome to Deadman’s Tab',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #2563eb;">Welcome to Deadman’s Tab</h2>
-          <p>Hi there!</p>
-          <p>You’ve successfully registered. We'll monitor your activity and purge after <strong>${data.purgeAfterDays} days</strong> of inaction if you don’t verify via email.</p>
-          <p>Make sure to click the verification email you’ll be getting next!</p>
-        </div>
-      `,
-    });
+    // Send welcome email via Resend with error handling
+    try {
+      const { error } = await resend.emails.send({
+        from: 'Deadman’s Tab <noreply@resend.dev>',
+        to: data.email,
+        subject: 'Welcome to Deadman’s Tab',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #2563eb;">Welcome to Deadman’s Tab</h2>
+            <p>Hi there!</p>
+            <p>You’ve successfully registered. We'll monitor your activity and purge after <strong>${data.purgeAfterDays} days</strong> of inaction if you don’t verify via email.</p>
+            <p>Make sure to click the verification email you’ll be getting next!</p>
+          </div>
+        `,
+      });
 
-    if (error) {
-      console.error('Resend email error:', error);
-      throw new Error('Failed to send welcome email');
+      if (error) {
+        console.error('Resend email error:', error);
+        throw new Error('Failed to send welcome email');
+      }
+    } catch (emailError) {
+      console.error("❌ Email sending failed:", emailError);
+      throw new Error("Email sending failed");
     }
 
     return {
@@ -100,7 +107,11 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({ success: true }),
     };
   } catch (error) {
-    console.error('Error in registerUser:', error);
+    console.error('🔥 ERROR in registerUser.ts:', {
+      message: (error as Error).message,
+      stack: (error as Error).stack,
+      originalError: error,
+    });
     return {
       statusCode: 500,
       headers: {
