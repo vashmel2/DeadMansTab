@@ -68,10 +68,10 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // Register the user in your local store
+    // Register user
     registerUser(data);
 
-    // Send welcome email via Resend
+    // Send welcome email
     const { error } = await resend.emails.send({
       from: 'Deadman’s Tab <noreply@resend.dev>',
       to: data.email,

@@ -6,7 +6,8 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Content-Type': 'application/json',
 };
 
 export const handler: Handler = async (event) => {
@@ -14,7 +15,7 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 204,
       headers: corsHeaders,
-      body: ''
+      body: '',
     };
   }
 
@@ -22,7 +23,7 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 405,
       headers: corsHeaders,
-      body: JSON.stringify({ error: 'Method not allowed' })
+      body: JSON.stringify({ error: 'Method not allowed' }),
     };
   }
 
@@ -30,12 +31,11 @@ export const handler: Handler = async (event) => {
     const parsedBody = JSON.parse(event.body || '{}');
     const { email, purgeAfterDays } = parsedBody;
 
-
     if (!email || !purgeAfterDays) {
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'Email and purgeAfterDays are required' })
+        body: JSON.stringify({ error: 'Email and purgeAfterDays are required' }),
       };
     }
 
@@ -44,11 +44,10 @@ export const handler: Handler = async (event) => {
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'Invalid email format' })
+        body: JSON.stringify({ error: 'Invalid email format' }),
       };
     }
 
-    // Send the actual verification email using Resend
     const { error } = await resend.emails.send({
       from: 'Deadman’s Tab <noreply@resend.dev>',
       to: email,
@@ -65,25 +64,29 @@ export const handler: Handler = async (event) => {
           </p>
           <p>If this wasn’t you, you can ignore this email.</p>
         </div>
-      `
+      `,
     });
 
     if (error) {
       console.error('Resend email error:', error);
-      throw new Error('Failed to send verification email');
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Failed to send verification email' }),
+      };
     }
 
     return {
       statusCode: 200,
       headers: corsHeaders,
-      body: JSON.stringify({ success: true })
+      body: JSON.stringify({ success: true }),
     };
   } catch (err) {
     console.error('Error in sendVerificationEmail:', err);
     return {
       statusCode: 500,
       headers: corsHeaders,
-      body: JSON.stringify({ error: 'Internal Server Error' })
+      body: JSON.stringify({ error: 'Internal Server Error' }),
     };
   }
 };

@@ -8,6 +8,7 @@ const corsHeaders = {
 };
 
 export const handler: Handler = async (event) => {
+  // Handle CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
@@ -16,6 +17,7 @@ export const handler: Handler = async (event) => {
     };
   }
 
+  // Only allow GET
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,

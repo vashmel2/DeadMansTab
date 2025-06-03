@@ -9,6 +9,7 @@ const corsHeaders = {
 };
 
 export const handler: Handler = async (event) => {
+  // Handle preflight CORS
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
@@ -17,6 +18,7 @@ export const handler: Handler = async (event) => {
     };
   }
 
+  // Method check
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
@@ -45,7 +47,7 @@ export const handler: Handler = async (event) => {
   }
 
   const clicks = getClicksByUserId(userId);
-  const lastClick = clicks.length > 0 
+  const lastClick = clicks.length > 0
     ? new Date(clicks[clicks.length - 1].timestamp)
     : null;
 

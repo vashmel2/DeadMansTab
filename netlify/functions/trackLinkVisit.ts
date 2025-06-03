@@ -5,6 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Content-Type': 'application/json',
 };
 
 export const handler: Handler = async (event) => {
@@ -19,41 +20,46 @@ export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json',
-      },
+      headers: corsHeaders,
       body: JSON.stringify({ error: 'Method not allowed' }),
     };
   }
 
-  const userId = event.queryStringParameters?.userId;
+  try {
+    const userId = event.queryStringParameters?.userId;
 
-  if (!userId) {
+    if (!userId) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Missing userId parameter' }),
+      };
+    }
+
+    const timestamp = new Date().toISOString();
+    const ip =
+      event.headers['x-forwarded-for'] ||
+      event.headers['client-ip'] ||
+      event.headers['x-real-ip'] ||
+      'unknown';
+
+    await logClick({
+      userId,
+      timestamp,
+      ip,
+    });
+
     return {
-      statusCode: 400,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ error: 'Missing userId parameter' }),
+      statusCode: 200,
+      headers: corsHeaders,
+      body: JSON.stringify({ success: true }),
+    };
+  } catch (err) {
+    console.error('Error in trackLinkVisit:', err);
+    return {
+      statusCode: 500,
+      headers: corsHeaders,
+      body: JSON.stringify({ error: 'Internal Server Error' }),
     };
   }
-
-  const timestamp = new Date().toISOString();
-
-  logClick({
-    userId,
-    timestamp,
-    ip: event.headers['client-ip'] || 'unknown',
-  });
-
-  return {
-    statusCode: 200,
-    headers: {
-      ...corsHeaders,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ success: true }),
-  };
 };
