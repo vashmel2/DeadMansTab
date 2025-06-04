@@ -1,6 +1,5 @@
 import { Handler } from '@netlify/functions';
 import { Resend } from 'resend';
-import { supabase } from './_utils/supabaseClient'; // ✅ use the new shared client
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -8,7 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json',
 };
 
 export const handler: Handler = async (event) => {
@@ -29,67 +27,32 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    const parsedBody = JSON.parse(event.body || '{}');
-    const { email, purgeAfterDays } = parsedBody;
+    const { email, userId } = JSON.parse(event.body || '{}');
 
-    if (!email || !purgeAfterDays) {
+    if (!email || !userId) {
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'Email and purgeAfterDays are required' }),
+        body: JSON.stringify({ error: 'Missing email or userId' }),
       };
     }
 
-    const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
-    if (!emailRegex.test(email)) {
-      return {
-        statusCode: 400,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'Invalid email format' }),
-      };
-    }
+    const link = `https://deadmanstabdev.netlify.app/.netlify/functions/verifyUser?userId=${userId}`;
 
-    // ✅ Send verification email
-    const { error: sendError } = await resend.emails.send({
-      from: "Deadman's Tab <noreply@resend.dev>",
-      to: email,
-      subject: "Verify Your Email – Deadman's Tab",
-      html: `
-        <html>
-          <body style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #ef4444;">⚠️ Final Warning!</h2>
-            <p>We've noticed inactivity on your browser. If you don’t click the button below, your tabs and history will be wiped in <strong>${purgeAfterDays} days</strong>.</p>
-            <p style="margin: 20px 0;">
-              <a href="https://deadmanstabdev.netlify.app/verify?email=${encodeURIComponent(email)}" 
-                 target="_blank" rel="noopener noreferrer"
-                 style="display: inline-block; padding: 12px 20px; background-color: #10b981; color: white; text-decoration: none; border-radius: 6px;">
-                 Click to Keep Everything Safe
-              </a>
-            </p>
-            <p>If this wasn’t you, you can ignore this email.</p>
-          </body>
-        </html>
-      `,
+    const { error } = await resend.emails.send({
+      from: 'Dead Man\'s Tab <no-reply@deadmanstab.com>',
+      to: [email],
+      subject: 'Verify Your Tab',
+      html: `<p>Click the link below to verify you're still alive:</p><p><a href="${link}">I’m alive, don't purge me</a></p>`,
     });
 
-    if (sendError) {
-      console.error('❌ Resend email error:', sendError);
+    if (error) {
+      console.error('Resend error:', error);
       return {
         statusCode: 500,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'Failed to send verification email' }),
+        body: JSON.stringify({ error: 'Failed to send email' }),
       };
-    }
-
-    // ✅ Update last_verified timestamp
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ last_verified: new Date().toISOString() })
-      .eq('email', email);
-
-    if (updateError) {
-      console.error('❌ Supabase update error:', updateError);
-      // We won't fail the request just because Supabase logging failed
     }
 
     return {
@@ -98,7 +61,7 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({ success: true }),
     };
   } catch (err) {
-    console.error('🔥 Error in sendVerificationEmail:', err);
+    console.error('Unexpected error:', err);
     return {
       statusCode: 500,
       headers: corsHeaders,
