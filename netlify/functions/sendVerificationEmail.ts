@@ -6,12 +6,12 @@ const resend = new Resend(process.env.RESEND_API_KEY!);
  * Sends a verification email with a "still alive" link.
  */
 export const sendVerificationEmail = async (email: string, userId: string) => {
-  const verificationLink = `https://deadmanstabdev.netlify.app/.netlify/functions/verifyUser?email=${encodeURIComponent(email)}`;
+  const verificationLink = `https://deadmanstabdev.netlify.app/.netlify/functions/verifyUser?userId=${encodeURIComponent(userId)}`;
 
   console.log(`🔗 Sending verification link to ${email}: ${verificationLink}`);
 
   const { error } = await resend.emails.send({
-    from: 'Dead Man\'s Tab <no-reply@deadmanstab.com>',
+    from: 'Deadman’s Tab <noreply@resend.dev>',
     to: [email],
     subject: '🔒 Verify Your Tab',
     html: `
