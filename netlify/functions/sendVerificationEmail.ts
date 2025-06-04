@@ -1,5 +1,6 @@
 import { Handler } from '@netlify/functions';
 import { Resend } from 'resend';
+import { supabase } from './_utils/supabaseClient'; // ✅ use the new shared client
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -48,7 +49,8 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    const { error } = await resend.emails.send({
+    // ✅ Send verification email
+    const { error: sendError } = await resend.emails.send({
       from: "Deadman's Tab <noreply@resend.dev>",
       to: email,
       subject: "Verify Your Email – Deadman's Tab",
@@ -70,13 +72,24 @@ export const handler: Handler = async (event) => {
       `,
     });
 
-    if (error) {
-      console.error('Resend email error:', error);
+    if (sendError) {
+      console.error('❌ Resend email error:', sendError);
       return {
         statusCode: 500,
         headers: corsHeaders,
         body: JSON.stringify({ error: 'Failed to send verification email' }),
       };
+    }
+
+    // ✅ Update last_verified timestamp
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ last_verified: new Date().toISOString() })
+      .eq('email', email);
+
+    if (updateError) {
+      console.error('❌ Supabase update error:', updateError);
+      // We won't fail the request just because Supabase logging failed
     }
 
     return {
@@ -85,7 +98,7 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({ success: true }),
     };
   } catch (err) {
-    console.error('Error in sendVerificationEmail:', err);
+    console.error('🔥 Error in sendVerificationEmail:', err);
     return {
       statusCode: 500,
       headers: corsHeaders,
