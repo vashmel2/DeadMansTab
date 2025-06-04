@@ -12,6 +12,30 @@ const supabase = createClient(
 
 // ✅ Reusable function you can import and call from anywhere
 export const sendVerificationEmail = async (email: string, userId: string) => {
+  // 🔍 Check last_email_sent from Supabase
+  const { data: userData, error: fetchError } = await supabase
+    .from('users')
+    .select('last_email_sent')
+    .eq('id', userId)
+    .single();
+
+  if (fetchError || !userData) {
+    console.error('❌ Failed to fetch user from Supabase:', fetchError);
+    throw new Error('User not found or Supabase error');
+  }
+
+  const lastEmailSent = userData.last_email_sent ? new Date(userData.last_email_sent) : null;
+  const now = new Date();
+
+  if (lastEmailSent) {
+    const hoursSinceLastEmail = (now.getTime() - lastEmailSent.getTime()) / (1000 * 60 * 60);
+
+    if (hoursSinceLastEmail < 24) {
+      console.log(`⏳ Skipping email — last sent ${hoursSinceLastEmail.toFixed(2)} hours ago.`);
+      return; // Exit early: do NOT send email
+    }
+  }
+
   const verificationLink = `https://deadmanstabdev.netlify.app/.netlify/functions/verifyUser?userId=${encodeURIComponent(
     userId
   )}`;
@@ -43,7 +67,7 @@ export const sendVerificationEmail = async (email: string, userId: string) => {
   // ✅ Update last_email_sent in Supabase
   const { error: updateError } = await supabase
     .from('users')
-    .update({ last_email_sent: new Date().toISOString() })
+    .update({ last_email_sent: now.toISOString() })
     .eq('id', userId);
 
   if (updateError) {
