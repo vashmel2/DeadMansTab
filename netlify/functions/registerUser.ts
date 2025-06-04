@@ -1,5 +1,12 @@
 import { Handler } from '@netlify/functions';
-import { supabase } from '../../src/lib/supabaseClient';
+import { Resend } from 'resend';
+import { createClient } from '@supabase/supabase-js';
+
+const resend = new Resend(process.env.RESEND_API_KEY!);
+
+const supabaseUrl = process.env.SUPABASE_URL!;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // change to service role key here
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

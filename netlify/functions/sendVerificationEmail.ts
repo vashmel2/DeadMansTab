@@ -1,13 +1,21 @@
 import { Handler } from '@netlify/functions';
 import { Resend } from 'resend';
+import { createClient } from '@supabase/supabase-js';
+import { UserData } from '../../src/types';
+import { sendVerificationEmail } from './sendVerificationEmail';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY!);
+
+const supabaseUrl = process.env.SUPABASE_URL!;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // change to service role key here
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
