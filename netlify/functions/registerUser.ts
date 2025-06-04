@@ -7,7 +7,7 @@ import { sendVerificationEmail } from './sendVerificationEmail';
 const resend = new Resend(process.env.RESEND_API_KEY!);
 
 const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // ✅ Use Service Role Key
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 const corsHeaders = {
@@ -79,7 +79,7 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // ✅ Insert user into Supabase and return ID
+    // ✅ Insert user and return ID
     const { data: insertedUsers, error: insertError } = await supabase
       .from('users')
       .insert({
@@ -89,7 +89,7 @@ export const handler: Handler = async (event) => {
         last_verified: null,
         created_at: new Date().toISOString(),
       })
-      .select('id') // ⬅️ Fetch the userId after insert
+      .select('id')
       .single();
 
     if (insertError || !insertedUsers) {
@@ -116,21 +116,20 @@ export const handler: Handler = async (event) => {
       });
     } catch (emailError) {
       console.error("⚠️ Welcome email sending failed:", emailError);
-      // Fail silently
     }
 
     // 🔐 Send verification email
     try {
-      await sendVerificationEmail(data.email, userId); // ✅ Now correctly passes both args
+      await sendVerificationEmail(data.email, userId);
     } catch (verifError) {
       console.error("⚠️ Verification email sending failed:", verifError);
-      // Fail silently
     }
 
+    // ✅ Return success with userId
     return {
       statusCode: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: true }),
+      body: JSON.stringify({ success: true, userId }),
     };
   } catch (error) {
     console.error('🔥 ERROR in registerUser.ts:', error);
