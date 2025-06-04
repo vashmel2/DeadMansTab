@@ -1,7 +1,14 @@
 import { Resend } from 'resend';
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
+import { createClient } from '@supabase/supabase-js';
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
+
+// 🧠 Setup Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // ✅ Reusable function you can import and call from anywhere
 export const sendVerificationEmail = async (email: string, userId: string) => {
@@ -11,7 +18,7 @@ export const sendVerificationEmail = async (email: string, userId: string) => {
 
   console.log(`🔗 Sending verification link to ${email}: ${verificationLink}`);
 
-  const { error } = await resend.emails.send({
+  const { error: emailError } = await resend.emails.send({
     from: 'Deadman’s Tab <noreply@resend.dev>',
     to: [email],
     subject: '🔒 Verify Your Tab',
@@ -26,15 +33,27 @@ export const sendVerificationEmail = async (email: string, userId: string) => {
     `,
   });
 
-  if (error) {
-    console.error('❌ Resend email sending error:', error);
+  if (emailError) {
+    console.error('❌ Resend email sending error:', emailError);
     throw new Error('Failed to send verification email');
   }
 
   console.log(`✅ Verification email sent to ${email}`);
+
+  // ✅ Update last_email_sent in Supabase
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ last_email_sent: new Date().toISOString() })
+    .eq('id', userId);
+
+  if (updateError) {
+    console.error('⚠️ Failed to update last_email_sent in Supabase:', updateError);
+  } else {
+    console.log(`🕒 last_email_sent updated for ${email}`);
+  }
 };
 
-// ✅ Netlify handler for HTTP-triggered version (optional, still works from frontend if needed)
+// ✅ Netlify handler for HTTP-triggered version (optional)
 const sendVerificationEmailHandler: Handler = async (
   event: HandlerEvent,
   context: HandlerContext

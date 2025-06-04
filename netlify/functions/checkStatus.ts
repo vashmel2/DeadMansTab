@@ -9,7 +9,6 @@ const corsHeaders = {
 };
 
 export const handler: Handler = async (event) => {
-  // Handle preflight CORS
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
@@ -18,7 +17,6 @@ export const handler: Handler = async (event) => {
     };
   }
 
-  // Method check
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
@@ -28,7 +26,6 @@ export const handler: Handler = async (event) => {
   }
 
   const userId = event.queryStringParameters?.userId;
-
   if (!userId) {
     return {
       statusCode: 400,
@@ -37,7 +34,7 @@ export const handler: Handler = async (event) => {
     };
   }
 
-  const user = getUser(userId);
+  const user = await getUser(userId);
   if (!user) {
     return {
       statusCode: 404,
@@ -46,28 +43,29 @@ export const handler: Handler = async (event) => {
     };
   }
 
-  const clicks = getClicksByUserId(userId);
+  const clicks = await getClicksByUserId(userId);
   const lastClick = clicks.length > 0
     ? new Date(clicks[clicks.length - 1].timestamp)
     : null;
 
   const lastEmailSent = user.lastEmailSent
     ? new Date(user.lastEmailSent)
-    : new Date();
+    : new Date(user.created_at); // fallback to account creation date
 
   const now = new Date();
   const referenceDate = lastClick || lastEmailSent;
-  const daysPassed = (now.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24);
+  const daysPassed = Math.floor((now.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
+  const daysRemaining = Math.max(0, user.purgeAfterDays - daysPassed);
 
-  const response = daysPassed >= user.purgeAfterDays
-    ? {
-        status: 'Purge Triggered',
-        daysLeft: 0,
-      }
-    : {
-        status: 'Waiting',
-        daysLeft: user.purgeAfterDays - daysPassed,
-      };
+  const shouldPurge = daysRemaining === 0;
+
+  const response = {
+    success: true,
+    shouldPurge,
+    daysRemaining,
+    isVerified: user.isVerified || false,
+    userId: user.id, // Needed for background.js verification
+  };
 
   return {
     statusCode: 200,

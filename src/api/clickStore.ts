@@ -13,6 +13,6 @@ export function logClick(click: Click) {
   clicks[click.userId].push(click);
 }
 
-export function getClicksByUserId(userId: string) {
+export function getClicksByUserId(userId: string): Click[] {
   return clicks[userId] || [];
 }
