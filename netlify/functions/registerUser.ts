@@ -1,11 +1,13 @@
 import { Handler } from '@netlify/functions';
 import { Resend } from 'resend';
 import { createClient } from '@supabase/supabase-js';
+import { UserData } from '../../src/types';
+import { sendVerificationEmail } from './sendVerificationEmail';
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
 
 const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // change to service role key here
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // ✅ Use Service Role Key
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 const corsHeaders = {
@@ -15,68 +17,127 @@ const corsHeaders = {
 };
 
 export const handler: Handler = async (event) => {
-  // Handle preflight CORS
+  console.log("📩 registerUser function hit");
+
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 204,
-      headers: corsHeaders,
-      body: '',
-    };
+    return { statusCode: 204, headers: corsHeaders, body: '' };
   }
 
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
-      headers: corsHeaders,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Method not allowed' }),
     };
   }
 
   try {
-    const { email, purgeAfterDays } = JSON.parse(event.body || '{}');
+    const data: UserData = JSON.parse(event.body || '');
 
-    if (!email || !purgeAfterDays) {
+    if (!data.email || !data.purgeAfterDays) {
       return {
         statusCode: 400,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'Missing email or purgeAfterDays' }),
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Email and purgeAfterDays are required' }),
       };
     }
 
-    // Insert new user
-    const { data, error } = await supabase
+    const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+    if (!emailRegex.test(data.email)) {
+      return {
+        statusCode: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid email format' }),
+      };
+    }
+
+    if (typeof data.purgeAfterDays !== 'number' || data.purgeAfterDays <= 0) {
+      return {
+        statusCode: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'purgeAfterDays must be a positive number' }),
+      };
+    }
+
+    // 🔍 Check if user already exists
+    const { data: existingUser, error: fetchError } = await supabase
       .from('users')
-      .insert([{ email, purge_after_days: purgeAfterDays }])
-      .select()
+      .select('*')
+      .eq('email', data.email)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('❌ Supabase fetch error:', fetchError);
+      throw new Error('Database error');
+    }
+
+    if (existingUser) {
+      return {
+        statusCode: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'User already registered' }),
+      };
+    }
+
+    // ✅ Insert user into Supabase and return ID
+    const { data: insertedUsers, error: insertError } = await supabase
+      .from('users')
+      .insert({
+        email: data.email,
+        purge_after_days: data.purgeAfterDays,
+        verified: false,
+        last_verified: null,
+        created_at: new Date().toISOString(),
+      })
+      .select('id') // ⬅️ Fetch the userId after insert
       .single();
 
-    if (error || !data) {
-      console.error('Error inserting user:', error);
-      return {
-        statusCode: 500,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'Failed to register user' }),
-      };
+    if (insertError || !insertedUsers) {
+      console.error('❌ Supabase insert error:', insertError);
+      throw new Error('Failed to register user');
     }
 
-    // Trigger verification email
-    await fetch(`${process.env.URL}/.netlify/functions/sendVerificationEmail`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, userId: data.id }),
-    });
+    const userId = insertedUsers.id;
+
+    // 📬 Send welcome email
+    try {
+      await resend.emails.send({
+        from: 'Deadman’s Tab <noreply@resend.dev>',
+        to: data.email,
+        subject: 'Welcome to Deadman’s Tab',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #2563eb;">Welcome to Deadman’s Tab</h2>
+            <p>Hi there!</p>
+            <p>You’ve successfully registered. We'll monitor your activity and purge after <strong>${data.purgeAfterDays} days</strong> of inaction if you don’t verify via email.</p>
+            <p>Make sure to click the verification email you’ll be getting next!</p>
+          </div>
+        `,
+      });
+    } catch (emailError) {
+      console.error("⚠️ Welcome email sending failed:", emailError);
+      // Fail silently
+    }
+
+    // 🔐 Send verification email
+    try {
+      await sendVerificationEmail(data.email, userId); // ✅ Now correctly passes both args
+    } catch (verifError) {
+      console.error("⚠️ Verification email sending failed:", verifError);
+      // Fail silently
+    }
 
     return {
       statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify({ success: true, userId: data.id }),
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ success: true }),
     };
-  } catch (err) {
-    console.error('Unexpected error in registerUser:', err);
+  } catch (error) {
+    console.error('🔥 ERROR in registerUser.ts:', error);
     return {
       statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Internal Server Error' }),
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Failed to process request' }),
     };
   }
 };
