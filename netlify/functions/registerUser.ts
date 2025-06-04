@@ -125,7 +125,7 @@ export const handler: Handler = async (event) => {
       console.error("⚠️ Verification email sending failed:", verifError);
     }
 
-    // ✅ Return success with userId
+    // ✅ Return success with userId (IMPORTANT: This fixes your plugin fetch issue)
     return {
       statusCode: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
