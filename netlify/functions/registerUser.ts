@@ -1,9 +1,14 @@
 import { Handler } from '@netlify/functions';
 import { Resend } from 'resend';
+import { createClient } from '@supabase/supabase-js';
 import { UserData } from '../../src/types';
-import { registerUser } from '../../src/api/userStore';
+import { sendVerificationEmail } from './sendVerificationEmail';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY!);
+
+const supabaseUrl = process.env.SUPABASE_URL!;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,23 +17,16 @@ const corsHeaders = {
 };
 
 export const handler: Handler = async (event) => {
-  console.log("registerUser function hit");  // <-- Log when function is called
+  console.log("📩 registerUser function hit");
 
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 204,
-      headers: corsHeaders,
-      body: '',
-    };
+    return { statusCode: 204, headers: corsHeaders, body: '' };
   }
 
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json',
-      },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Method not allowed' }),
     };
   }
@@ -39,10 +37,7 @@ export const handler: Handler = async (event) => {
     if (!data.email || !data.purgeAfterDays) {
       return {
         statusCode: 400,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: 'Email and purgeAfterDays are required' }),
       };
     }
@@ -51,10 +46,7 @@ export const handler: Handler = async (event) => {
     if (!emailRegex.test(data.email)) {
       return {
         statusCode: 400,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: 'Invalid email format' }),
       };
     }
@@ -62,20 +54,48 @@ export const handler: Handler = async (event) => {
     if (typeof data.purgeAfterDays !== 'number' || data.purgeAfterDays <= 0) {
       return {
         statusCode: 400,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: 'purgeAfterDays must be a positive number' }),
       };
     }
 
-    // Register the user in your local store
-    registerUser(data);
+    // 🔍 Check if user already exists
+    const { data: existingUser, error: fetchError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', data.email)
+      .maybeSingle();
 
-    // Send welcome email via Resend with error handling
+    if (fetchError) {
+      console.error('❌ Supabase fetch error:', fetchError);
+      throw new Error('Database error');
+    }
+
+    if (existingUser) {
+      return {
+        statusCode: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'User already registered' }),
+      };
+    }
+
+    // ✅ Insert user into Supabase
+    const { error: insertError } = await supabase.from('users').insert({
+      email: data.email,
+      purge_after_days: data.purgeAfterDays,
+      verified: false,
+      last_verified: null,
+      created_at: new Date().toISOString(),
+    });
+
+    if (insertError) {
+      console.error('❌ Supabase insert error:', insertError);
+      throw new Error('Failed to register user');
+    }
+
+    // 📬 Send welcome email
     try {
-      const { error } = await resend.emails.send({
+      await resend.emails.send({
         from: 'Deadman’s Tab <noreply@resend.dev>',
         to: data.email,
         subject: 'Welcome to Deadman’s Tab',
@@ -88,36 +108,29 @@ export const handler: Handler = async (event) => {
           </div>
         `,
       });
-
-      if (error) {
-        console.error('Resend email error:', error);
-        throw new Error('Failed to send welcome email');
-      }
     } catch (emailError) {
-      console.error("❌ Email sending failed:", emailError);
-      throw new Error("Email sending failed");
+      console.error("⚠️ Welcome email sending failed:", emailError);
+      // Fail silently
+    }
+
+    // 🔐 Send verification email
+    try {
+      await sendVerificationEmail(data.email);
+    } catch (verifError) {
+      console.error("⚠️ Verification email sending failed:", verifError);
+      // Fail silently
     }
 
     return {
       statusCode: 200,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json',
-      },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ success: true }),
     };
   } catch (error) {
-    console.error('🔥 ERROR in registerUser.ts:', {
-      message: (error as Error).message,
-      stack: (error as Error).stack,
-      originalError: error,
-    });
+    console.error('🔥 ERROR in registerUser.ts:', error);
     return {
       statusCode: 500,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json',
-      },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Failed to process request' }),
     };
   }
