@@ -57,7 +57,7 @@ export const handler: Handler = async (event) => {
   const daysPassed = Math.floor((now.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
   const daysRemaining = Math.max(0, user.purgeAfterDays - daysPassed);
 
-  const shouldPurge = daysRemaining === 0;
+  const shouldPurge = user.purged || daysRemaining === 0;
 
   const response = {
     success: true,
