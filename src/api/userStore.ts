@@ -1,36 +1,71 @@
-type User = {
+import { supabase } from '../lib/supabaseClient'; // adjust path if needed
+
+export type User = {
+  id: string;
   email: string;
   purgeAfterDays: number;
-  registeredAt: string;
-  lastEmailSent?: string;
+  created_at: string;
+  lastEmailSent?: string | null;
   isVerified: boolean;
+  purged?: boolean;
 };
 
-const users: Record<string, User> = {};
+// Register a new user in Supabase users table
+export async function registerUser({ userId, email, purgeAfterDays }: { userId: string; email: string; purgeAfterDays: number }) {
+  const { data, error } = await supabase
+    .from('users')
+    .insert({
+      id: userId,
+      email,
+      purgeAfterDays,
+      isVerified: false,
+      lastEmailSent: new Date().toISOString(),
+    });
 
-// Register user with backend-generated userId
-export function registerUser({ userId, email, purgeAfterDays }: { userId: string; email: string; purgeAfterDays: number }) {
-  users[userId] = {
-    email,
-    purgeAfterDays,
-    registeredAt: new Date().toISOString(),
-    lastEmailSent: new Date().toISOString(),
-    isVerified: false,
-  };
+  if (error) {
+    console.error('registerUser error:', error);
+    throw error;
+  }
+  return data;
 }
 
-export function getUser(userId: string): User | null {
-  return users[userId] || null;
+// Get user by userId from Supabase
+export async function getUser(userId: string): Promise<User | null> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (error) {
+    console.error('getUser error:', error);
+    return null;
+  }
+  return data as User;
 }
 
-export function updateLastEmailSent(userId: string) {
-  if (users[userId]) {
-    users[userId].lastEmailSent = new Date().toISOString();
+// Update lastEmailSent timestamp for user
+export async function updateLastEmailSent(userId: string) {
+  const { error } = await supabase
+    .from('users')
+    .update({ lastEmailSent: new Date().toISOString() })
+    .eq('id', userId);
+
+  if (error) {
+    console.error('updateLastEmailSent error:', error);
+    throw error;
   }
 }
 
-export function setUserVerified(userId: string) {
-  if (users[userId]) {
-    users[userId].isVerified = true;
+// Set user as verified
+export async function setUserVerified(userId: string) {
+  const { error } = await supabase
+    .from('users')
+    .update({ isVerified: true })
+    .eq('id', userId);
+
+  if (error) {
+    console.error('setUserVerified error:', error);
+    throw error;
   }
 }

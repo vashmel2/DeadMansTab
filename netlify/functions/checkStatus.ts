@@ -9,70 +9,87 @@ const corsHeaders = {
 };
 
 export const handler: Handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
+  try {
+    if (event.httpMethod === 'OPTIONS') {
+      return {
+        statusCode: 204,
+        headers: corsHeaders,
+        body: '',
+      };
+    }
+
+    if (event.httpMethod !== 'GET') {
+      return {
+        statusCode: 405,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Method not allowed' }),
+      };
+    }
+
+    const userId = event.queryStringParameters?.userId;
+    if (!userId) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Missing userId parameter' }),
+      };
+    }
+
+    console.log(`checkStatus: Received userId = ${userId}`);
+
+    const user = await getUser(userId);
+
+    if (!user) {
+      console.warn(`checkStatus: User not found for userId = ${userId}`);
+      return {
+        statusCode: 404,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'User not found' }),
+      };
+    }
+
+    console.log('checkStatus: User found:', user);
+
+    const clicks = await getClicksByUserId(userId);
+    console.log(`checkStatus: Found ${clicks.length} clicks for userId = ${userId}`);
+
+    const lastClick = clicks.length > 0
+      ? new Date(clicks[clicks.length - 1].timestamp)
+      : null;
+
+    const lastEmailSent = user.lastEmailSent
+      ? new Date(user.lastEmailSent)
+      : new Date(user.created_at);
+
+    const now = new Date();
+    const referenceDate = lastClick || lastEmailSent;
+    const daysPassed = Math.floor((now.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
+    const daysRemaining = Math.max(0, user.purgeAfterDays - daysPassed);
+
+    const shouldPurge = user.purged || daysRemaining === 0;
+
+    const response = {
+      success: true,
+      shouldPurge,
+      daysRemaining,
+      isVerified: user.isVerified || false,
+      userId: user.id,
+    };
+
     return {
-      statusCode: 204,
+      statusCode: 200,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(response),
+    };
+  } catch (error) {
+    console.error('checkStatus: Unexpected error:', error);
+    return {
+      statusCode: 500,
       headers: corsHeaders,
-      body: '',
+      body: JSON.stringify({ error: 'Internal Server Error' }),
     };
   }
-
-  if (event.httpMethod !== 'GET') {
-    return {
-      statusCode: 405,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Method not allowed' }),
-    };
-  }
-
-  const userId = event.queryStringParameters?.userId;
-  if (!userId) {
-    return {
-      statusCode: 400,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Missing userId parameter' }),
-    };
-  }
-
-  const user = await getUser(userId);
-  if (!user) {
-    return {
-      statusCode: 404,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'User not found' }),
-    };
-  }
-
-  const clicks = await getClicksByUserId(userId);
-  const lastClick = clicks.length > 0
-    ? new Date(clicks[clicks.length - 1].timestamp)
-    : null;
-
-  const lastEmailSent = user.lastEmailSent
-    ? new Date(user.lastEmailSent)
-    : new Date(user.created_at); // fallback to account creation date
-
-  const now = new Date();
-  const referenceDate = lastClick || lastEmailSent;
-  const daysPassed = Math.floor((now.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
-  const daysRemaining = Math.max(0, user.purgeAfterDays - daysPassed);
-
-  const shouldPurge = user.purged || daysRemaining === 0;
-
-  const response = {
-    success: true,
-    shouldPurge,
-    daysRemaining,
-    isVerified: user.isVerified || false,
-    userId: user.id, // Needed for background.js verification
-  };
-
-  return {
-    statusCode: 200,
-    headers: {
-      ...corsHeaders,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(response),
-  };
 };
