@@ -27,6 +27,8 @@ export const handler: Handler = async (event) => {
     }
 
     const userId = event.queryStringParameters?.userId;
+    console.log("Received userId:", userId);
+
     if (!userId) {
       return {
         statusCode: 400,
