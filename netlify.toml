@@ -10,3 +10,6 @@ node_bundler = "esbuild"
 from = "/*"
 to = "/index.html"
 status = 200
+
+[functions."scheduledPurge"]
+schedule = "@daily"
