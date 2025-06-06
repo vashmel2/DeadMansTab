@@ -32,9 +32,11 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    const data: UserData = JSON.parse(event.body || '');
+    const rawData = JSON.parse(event.body || '');
+    const email = rawData.email;
+    const purgeAfterDays = rawData.purgeAfterDays ?? rawData.purge_after_days;
 
-    if (!data.email || !data.purgeAfterDays) {
+    if (!email || !purgeAfterDays) {
       return {
         statusCode: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -43,7 +45,7 @@ export const handler: Handler = async (event) => {
     }
 
     const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
-    if (!emailRegex.test(data.email)) {
+    if (!emailRegex.test(email)) {
       return {
         statusCode: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -51,7 +53,7 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    if (typeof data.purgeAfterDays !== 'number' || data.purgeAfterDays <= 0) {
+    if (typeof purgeAfterDays !== 'number' || purgeAfterDays <= 0) {
       return {
         statusCode: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -63,7 +65,7 @@ export const handler: Handler = async (event) => {
     const { data: existingUser, error: fetchError } = await supabase
       .from('users')
       .select('*')
-      .eq('email', data.email)
+      .eq('email', email)
       .maybeSingle();
 
     if (fetchError) {
@@ -83,8 +85,8 @@ export const handler: Handler = async (event) => {
     const { data: insertedUsers, error: insertError } = await supabase
       .from('users')
       .insert({
-        email: data.email,
-        purge_after_days: data.purgeAfterDays,
+        email,
+        purge_after_days: purgeAfterDays,
         verified: false,
         last_verified: null,
         created_at: new Date().toISOString(),
@@ -103,13 +105,13 @@ export const handler: Handler = async (event) => {
     try {
       await resend.emails.send({
         from: 'Deadman’s Tab <noreply@resend.dev>',
-        to: data.email,
+        to: email,
         subject: 'Welcome to Deadman’s Tab',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #2563eb;">Welcome to Deadman’s Tab</h2>
             <p>Hi there!</p>
-            <p>You’ve successfully registered. We'll monitor your activity and purge after <strong>${data.purgeAfterDays} days</strong> of inaction if you don’t verify via email.</p>
+            <p>You’ve successfully registered. We'll monitor your activity and purge after <strong>${purgeAfterDays} days</strong> of inaction if you don’t verify via email.</p>
             <p>Make sure to click the verification email you’ll be getting next!</p>
           </div>
         `,
@@ -120,12 +122,11 @@ export const handler: Handler = async (event) => {
 
     // 🔐 Send verification email
     try {
-      await sendVerificationEmail(data.email, userId);
+      await sendVerificationEmail(email, userId);
     } catch (verifError) {
       console.error("⚠️ Verification email sending failed:", verifError);
     }
 
-    // ✅ Return success with userId (IMPORTANT: This fixes your plugin fetch issue)
     return {
       statusCode: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
