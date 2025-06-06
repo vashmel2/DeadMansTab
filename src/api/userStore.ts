@@ -11,7 +11,15 @@ export type User = {
 };
 
 // Register a new user in Supabase users table
-export async function registerUser({ userId, email, purgeAfterDays }: { userId: string; email: string; purgeAfterDays: number }) {
+export async function registerUser({
+  userId,
+  email,
+  purgeAfterDays,
+}: {
+  userId: string;
+  email: string;
+  purgeAfterDays: number;
+}) {
   const { data, error } = await supabase
     .from('users')
     .insert({
@@ -39,6 +47,21 @@ export async function getUser(userId: string): Promise<User | null> {
 
   if (error) {
     console.error('getUser error:', error);
+    return null;
+  }
+  return data as User;
+}
+
+// ✅ New: Get user by email
+export async function getUserByEmail(email: string): Promise<User | null> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('email', email)
+    .single();
+
+  if (error) {
+    console.error('getUserByEmail error:', error);
     return null;
   }
   return data as User;

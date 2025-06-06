@@ -1,5 +1,5 @@
 import { Handler } from '@netlify/functions';
-import { getUser } from '../../src/api/userStore';
+import { getUser, getUserByEmail } from '../../src/api/userStore';
 import { getClicksByUserId } from '../../src/api/clickStore';
 
 const corsHeaders = {
@@ -27,22 +27,30 @@ export const handler: Handler = async (event) => {
     }
 
     const userId = event.queryStringParameters?.userId;
-    console.log("Received userId:", userId);
+    const email = event.queryStringParameters?.email;
 
-    if (!userId) {
+    console.log("checkStatus: Received query → userId:", userId, "email:", email);
+
+    if (!userId && !email) {
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'Missing userId parameter' }),
+        body: JSON.stringify({ error: 'Missing userId or email parameter' }),
       };
     }
 
-    console.log(`checkStatus: Received userId = ${userId}`);
+    let user;
 
-    const user = await getUser(userId);
+    if (userId) {
+      console.log(`checkStatus: Looking up user by userId = ${userId}`);
+      user = await getUser(userId);
+    } else {
+      console.log(`checkStatus: Looking up user by email = ${email}`);
+      user = await getUserByEmail(email);
+    }
 
     if (!user) {
-      console.warn(`checkStatus: User not found for userId = ${userId}`);
+      console.warn(`checkStatus: User not found for ${userId ? 'userId' : 'email'} = ${userId || email}`);
       return {
         statusCode: 404,
         headers: corsHeaders,
@@ -52,8 +60,8 @@ export const handler: Handler = async (event) => {
 
     console.log('checkStatus: User found:', user);
 
-    const clicks = await getClicksByUserId(userId);
-    console.log(`checkStatus: Found ${clicks.length} clicks for userId = ${userId}`);
+    const clicks = await getClicksByUserId(user.id);
+    console.log(`checkStatus: Found ${clicks.length} clicks for userId = ${user.id}`);
 
     const lastClick = clicks.length > 0
       ? new Date(clicks[clicks.length - 1].timestamp)
