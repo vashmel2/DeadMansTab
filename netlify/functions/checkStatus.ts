@@ -82,9 +82,11 @@ export const handler: Handler = async (event) => {
       success: true,
       shouldPurge,
       daysRemaining,
-      isVerified: user.isVerified || false,
+      isVerified: user.verified || false, // ✅ Fixed here
       userId: user.id,
     };
+
+    console.log('✅ Returning API Response:', response);
 
     return {
       statusCode: 200,
