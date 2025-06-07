@@ -74,7 +74,9 @@ export const handler: Handler = async (event) => {
     const now = new Date();
     const referenceDate = lastClick || lastEmailSent;
     const daysPassed = Math.floor((now.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
-    const daysRemaining = Math.max(0, user.purgeAfterDays - daysPassed);
+    const purgeAfterDays = user.purge_after_days ?? 0;
+    const daysRemaining = Math.max(0, purgeAfterDays - daysPassed);
+
 
     const shouldPurge = user.purged || daysRemaining === 0;
 
