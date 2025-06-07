@@ -20,7 +20,7 @@ const handler: Handler = async (event) => {
     };
   }
 
-  const { userId } = JSON.parse(event.body || '{}');
+  const { userId, force } = JSON.parse(event.body || '{}');
 
   if (!userId) {
     return {
@@ -44,9 +44,33 @@ const handler: Handler = async (event) => {
     };
   }
 
+  const now = new Date();
+
+  // FORCE purge — panic button override
+  if (force) {
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ purged: true, purged_at: now.toISOString() })
+      .eq('id', userId);
+
+    if (updateError) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to force purge user' }),
+      };
+    }
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ message: 'User force-purged via panic button' }),
+    };
+  }
+
+  // Normal logic — only purge if days expired
   const lastVerified = new Date(user.last_verified);
   const purgeAfterDays = user.purge_after_days;
-  const now = new Date();
   const diffTime = Math.abs(now.getTime() - lastVerified.getTime());
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
