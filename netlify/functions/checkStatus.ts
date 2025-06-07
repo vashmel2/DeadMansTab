@@ -89,7 +89,7 @@ export const handler: Handler = async (event) => {
   // ✅ All Supabase columns
   id: user.id,
   email: user.email,
-  purge_after_days: user.purgeAfterDays,
+  purge_after_days: user.purge_after_days,
   created_at: user.created_at,
   last_verified: user.last_verified,
   verified: user.verified,
