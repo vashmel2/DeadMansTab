@@ -79,12 +79,23 @@ export const handler: Handler = async (event) => {
     const shouldPurge = user.purged || daysRemaining === 0;
 
     const response = {
-      success: true,
-      shouldPurge,
-      daysRemaining,
-      isVerified: user.verified || false, // ✅ Fixed here
-      userId: user.id,
-    };
+  success: true,
+  shouldPurge,
+  daysRemaining,
+  isVerified: user.verified || false,
+
+  // ✅ All Supabase columns
+  id: user.id,
+  email: user.email,
+  purge_after_days: user.purgeAfterDays,
+  created_at: user.created_at,
+  last_verified: user.last_verified,
+  verified: user.verified,
+  last_email_sent: user.lastEmailSent,
+  purged: user.purged,
+  purged_at: user.purged_at,
+};
+
 
     console.log('✅ Returning API Response:', response);
 
