@@ -100,8 +100,8 @@ async function runScheduledPurge() {
   return { message: 'Scheduled purge and email check completed' };
 }
 
-// Scheduled function — runs daily
-const scheduledHandler = schedule('@daily', async () => {
+// **IMPORTANT**: Export the scheduled handler as `handler`
+const handler = schedule('@daily', async () => {
   console.log('🕒 scheduledPurge triggered');
   try {
     const result = await runScheduledPurge();
@@ -119,24 +119,4 @@ const scheduledHandler = schedule('@daily', async () => {
   }
 });
 
-// Manual HTTP handler
-const handler = async (event) => {
-  console.log('🔥 Manual endpoint hit:', event.httpMethod, event.path);
-  try {
-    const result = await runScheduledPurge();
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify(result),
-    };
-  } catch (e) {
-    console.error('❌ Error in manual purge trigger:', e);
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Unexpected error', detail: e.message }),
-    };
-  }
-};
-
-module.exports = { scheduledHandler, handler };
+module.exports = { handler };
