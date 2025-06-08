@@ -1,11 +1,16 @@
 import { schedule } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
-import fetch from 'node-fetch'; // IMPORTANT: add this import for fetch!
+import fetch from 'node-fetch'; // Make sure node-fetch is installed
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
 
 const handler = async (event, context) => {
   console.log('🕒 scheduledPurge triggered');
@@ -22,6 +27,7 @@ const handler = async (event, context) => {
       console.error('❌ Error fetching users:', error);
       return {
         statusCode: 500,
+        headers: corsHeaders,
         body: JSON.stringify({ error: 'Error fetching users' }),
       };
     }
@@ -30,6 +36,7 @@ const handler = async (event, context) => {
       console.log('ℹ️ No users found to process');
       return {
         statusCode: 200,
+        headers: corsHeaders,
         body: JSON.stringify({ message: 'No users to process' }),
       };
     }
@@ -113,12 +120,14 @@ const handler = async (event, context) => {
     console.log('🧹 Scheduled purge + daily email check completed.');
     return {
       statusCode: 200,
+      headers: corsHeaders,
       body: JSON.stringify({ message: 'Scheduled purge and email check completed' }),
     };
   } catch (e) {
     console.error('❌ Unexpected error in scheduledPurge:', e);
     return {
       statusCode: 500,
+      headers: corsHeaders,
       body: JSON.stringify({ error: 'Unexpected error', detail: e.message }),
     };
   }
