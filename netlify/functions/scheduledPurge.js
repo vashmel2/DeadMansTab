@@ -1,6 +1,6 @@
-import { schedule } from '@netlify/functions';
-import { createClient } from '@supabase/supabase-js';
-import fetch from 'node-fetch';
+const { schedule } = require('@netlify/functions');
+const { createClient } = require('@supabase/supabase-js');
+const fetch = require('node-fetch');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -35,31 +35,21 @@ async function runScheduledPurge() {
   for (const user of users) {
     console.log('🔍 Processing user:', user.id, user.email);
 
-    let lastVerified = null;
-    try {
-      lastVerified = user.last_verified ? new Date(user.last_verified) : null;
-    } catch {
-      lastVerified = null;
-    }
-
-    let lastEmailSent = null;
-    try {
-      lastEmailSent = user.last_email_sent ? new Date(user.last_email_sent) : null;
-    } catch {
-      lastEmailSent = null;
-    }
+    let lastVerified = user.last_verified ? new Date(user.last_verified) : null;
+    let lastEmailSent = user.last_email_sent ? new Date(user.last_email_sent) : null;
 
     if (!lastVerified) {
       console.warn(`⚠️ User ${user.id} has no valid last_verified date, skipping`);
       continue;
     }
 
-    const purgeAfterDays = user.purge_after_days ?? 0;
+    const purgeAfterDays = user.purge_after_days || 0;
+    const diffSinceVerification = (now.getTime() - lastVerified.getTime()) / (1000 * 60 * 60 * 24);
+    const diffSinceEmail = lastEmailSent
+      ? (now.getTime() - lastEmailSent.getTime()) / (1000 * 60 * 60 * 24)
+      : Infinity;
 
-    const diffSinceVerification = (now - lastVerified) / (1000 * 60 * 60 * 24);
-    const diffSinceEmail = lastEmailSent ? (now - lastEmailSent) / (1000 * 60 * 60 * 24) : Infinity;
-
-    // Purge logic
+    // Purge condition
     if (diffSinceVerification >= purgeAfterDays && purgeAfterDays > 0) {
       const { error: updateError } = await supabase
         .from('users')
@@ -74,7 +64,7 @@ async function runScheduledPurge() {
       continue;
     }
 
-    // Send daily email if 24+ hours passed
+    // Daily reminder email condition
     if (diffSinceEmail >= 1) {
       const daysRemaining = Math.ceil(purgeAfterDays - diffSinceVerification);
 
@@ -110,8 +100,8 @@ async function runScheduledPurge() {
   return { message: 'Scheduled purge and email check completed' };
 }
 
-// ✅ Scheduled function — runs daily
-export const scheduledHandler = schedule('@daily', async () => {
+// Scheduled function — runs daily
+const scheduledHandler = schedule('@daily', async () => {
   console.log('🕒 scheduledPurge triggered');
   try {
     const result = await runScheduledPurge();
@@ -129,8 +119,8 @@ export const scheduledHandler = schedule('@daily', async () => {
   }
 });
 
-// ✅ Manual HTTP handler
-export const handler = async (event, context) => {
+// Manual HTTP handler
+const handler = async (event) => {
   console.log('🔥 Manual endpoint hit:', event.httpMethod, event.path);
   try {
     const result = await runScheduledPurge();
@@ -148,3 +138,5 @@ export const handler = async (event, context) => {
     };
   }
 };
+
+module.exports = { scheduledHandler, handler };
