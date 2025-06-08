@@ -15,6 +15,16 @@ const corsHeaders = {
 const handler = async (event, context) => {
   console.log('🕒 scheduledPurge triggered');
 
+  // Check SITE_URL presence early
+  if (!process.env.SITE_URL) {
+    console.error('❌ SITE_URL env var is missing or empty.');
+    return {
+      statusCode: 500,
+      headers: corsHeaders,
+      body: JSON.stringify({ error: 'Missing SITE_URL environment variable' }),
+    };
+  }
+
   try {
     const now = new Date();
 
@@ -44,7 +54,6 @@ const handler = async (event, context) => {
     for (const user of users) {
       console.log('🔍 Processing user:', user.id, user.email);
 
-      // Defensive date parsing
       let lastVerified = null;
       try {
         lastVerified = user.last_verified ? new Date(user.last_verified) : null;
@@ -135,5 +144,3 @@ const handler = async (event, context) => {
 
 // Export wrapped in schedule for automatic running
 export const handler = schedule('@daily', handler);
-
-// Remember to fix this after testing Scheduled Emails Manually
