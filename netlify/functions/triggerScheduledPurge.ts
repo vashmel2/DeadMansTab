@@ -1,5 +1,6 @@
-import { handler } from '../netlify/functions/scheduledPurge.js';
+// netlify/functions/triggerScheduledPurge.ts
+import { handler as purgeHandler } from './scheduledPurge.mjs'
 
-handler({}, {} as any)
-  .then(() => console.log('Scheduled purge ran successfully!'))
-  .catch((err) => console.error('Error running scheduled purge:', err));
+export const handler = async (event, context) => {
+  return await purgeHandler(event, context)
+}
