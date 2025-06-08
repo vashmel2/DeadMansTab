@@ -12,10 +12,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+// Main purge logic
 async function runScheduledPurge() {
-  if (!process.env.SITE_URL) {
-    throw new Error('Missing SITE_URL environment variable');
-  }
+  const SITE_URL = process.env.SITE_URL;
+  if (!SITE_URL) throw new Error('Missing SITE_URL environment variable');
 
   const now = new Date();
 
@@ -24,62 +24,44 @@ async function runScheduledPurge() {
     .select('id, email, last_verified, last_email_sent, purge_after_days, verified, purged')
     .eq('purged', false);
 
-  if (error) {
-    throw new Error('Error fetching users: ' + error.message);
-  }
-
-  if (!users || users.length === 0) {
-    return { message: 'No users to process' };
-  }
+  if (error) throw new Error('Error fetching users: ' + error.message);
+  if (!users || users.length === 0) return { message: 'No users to process' };
 
   for (const user of users) {
     console.log('🔍 Processing user:', user.id, user.email);
 
-    let lastVerified = null;
-    try {
-      lastVerified = user.last_verified ? new Date(user.last_verified) : null;
-    } catch {
-      lastVerified = null;
-    }
-
-    let lastEmailSent = null;
-    try {
-      lastEmailSent = user.last_email_sent ? new Date(user.last_email_sent) : null;
-    } catch {
-      lastEmailSent = null;
-    }
+    const lastVerified = user.last_verified ? new Date(user.last_verified) : null;
+    const lastEmailSent = user.last_email_sent ? new Date(user.last_email_sent) : null;
 
     if (!lastVerified) {
-      console.warn(`⚠️ User ${user.id} has no valid last_verified date, skipping`);
+      console.warn(`⚠️ Skipping user ${user.id}, no last_verified date`);
       continue;
     }
 
     const purgeAfterDays = user.purge_after_days ?? 0;
-
     const diffSinceVerification = (now - lastVerified) / (1000 * 60 * 60 * 24);
     const diffSinceEmail = lastEmailSent ? (now - lastEmailSent) / (1000 * 60 * 60 * 24) : Infinity;
 
-    // Purge logic
-    if (diffSinceVerification >= purgeAfterDays && purgeAfterDays > 0) {
-      const { error: updateError } = await supabase
+    // Trigger purge if needed
+    if (purgeAfterDays > 0 && diffSinceVerification >= purgeAfterDays) {
+      const { error: purgeError } = await supabase
         .from('users')
         .update({ purged: true, purged_at: now.toISOString() })
         .eq('id', user.id);
 
-      if (updateError) {
-        console.error(`❌ Failed to purge user ${user.id}:`, updateError);
+      if (purgeError) {
+        console.error(`❌ Failed to purge user ${user.id}:`, purgeError.message);
       } else {
-        console.log(`✅ User ${user.id} purged successfully.`);
+        console.log(`✅ User ${user.id} purged successfully`);
       }
-      continue;
+      continue; // skip email if purged
     }
 
-    // Send daily email if 24+ hours passed
+    // Send daily check-in email
     if (diffSinceEmail >= 1) {
-      const daysRemaining = Math.ceil(purgeAfterDays - diffSinceVerification);
-
+      const daysRemaining = Math.max(0, Math.ceil(purgeAfterDays - diffSinceVerification));
       try {
-        const res = await fetch(`${process.env.SITE_URL}/.netlify/functions/sendVerificationEmail`, {
+        const response = await fetch(`${SITE_URL}/.netlify/functions/sendVerificationEmail`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -90,48 +72,47 @@ async function runScheduledPurge() {
           }),
         });
 
-        if (res.ok) {
+        if (response.ok) {
           await supabase
             .from('users')
             .update({ last_email_sent: now.toISOString() })
             .eq('id', user.id);
-
-          console.log(`📬 Sent verification email to ${user.email}`);
+          console.log(`📬 Email sent to ${user.email}`);
         } else {
-          const errMsg = await res.text();
-          console.warn(`⚠️ Failed to send email to ${user.email}:`, errMsg);
+          const errMsg = await response.text();
+          console.warn(`⚠️ Failed to send email to ${user.email}: ${errMsg}`);
         }
       } catch (err) {
-        console.error(`❌ Error sending email to ${user.email}:`, err);
+        console.error(`❌ Error sending email to ${user.email}:`, err.message);
       }
     }
   }
 
-  return { message: 'Scheduled purge and email check completed' };
+  return { message: 'Scheduled purge and email check complete' };
 }
 
-// Scheduled function — runs daily automatically
-export const scheduledHandler = schedule('@daily', async (event, context) => {
+// Scheduled function runs daily
+export const handler = schedule('@daily', async (event, context) => {
   console.log('🕒 scheduledPurge triggered');
   try {
     const result = await runScheduledPurge();
-    console.log('🧹 ' + result.message);
+    console.log('✅', result.message);
     return {
       statusCode: 200,
       body: JSON.stringify(result),
     };
-  } catch (e) {
-    console.error('❌ Unexpected error in scheduledPurge:', e);
+  } catch (err) {
+    console.error('❌ Scheduled purge error:', err.message);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Unexpected error', detail: e.message }),
+      body: JSON.stringify({ error: 'Scheduled purge failed', detail: err.message }),
     };
   }
 });
 
-// HTTP handler — manually test purge logic via HTTP call
-export const handler = async (event, context) => {
-  console.log('🚀 Manual purge test triggered');
+// Manual HTTP test support
+export const manual = async (event, context) => {
+  console.log('🚀 Manual purge triggered');
   try {
     const result = await runScheduledPurge();
     return {
@@ -139,12 +120,12 @@ export const handler = async (event, context) => {
       headers: corsHeaders,
       body: JSON.stringify(result),
     };
-  } catch (e) {
-    console.error('❌ Unexpected error in manual purge test:', e);
+  } catch (err) {
+    console.error('❌ Manual purge error:', err.message);
     return {
       statusCode: 500,
       headers: corsHeaders,
-      body: JSON.stringify({ error: 'Unexpected error', detail: e.message }),
+      body: JSON.stringify({ error: 'Manual purge failed', detail: err.message }),
     };
   }
 };
