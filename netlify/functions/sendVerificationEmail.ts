@@ -2,23 +2,19 @@ import { Resend } from 'resend';
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
 
-// 📦 Initialize Resend client
 const resend = new Resend(process.env.RESEND_API_KEY!);
 
-// 🔐 Setup Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// 🌐 CORS headers for frontend compatibility
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// ✅ Core reusable function for internal imports
 export const sendVerificationEmail = async (email: string, userId: string) => {
   const { data: userData, error: fetchError } = await supabase
     .from('users')
@@ -31,19 +27,20 @@ export const sendVerificationEmail = async (email: string, userId: string) => {
     throw new Error('User not found or Supabase error');
   }
 
-  const lastEmailSent = userData.last_email_sent ? new Date(userData.last_email_sent) : null;
   const now = new Date();
+  const lastEmailSent = userData.last_email_sent ? new Date(userData.last_email_sent) : null;
 
   if (lastEmailSent) {
-    const hoursSinceLastEmail = (now.getTime() - lastEmailSent.getTime()) / (1000 * 60 * 60);
-    if (hoursSinceLastEmail < 24) {
-      console.log(`⏳ Skipping email — last sent ${hoursSinceLastEmail.toFixed(2)} hours ago.`);
+    const diffTime = Math.abs(now.getTime() - lastEmailSent.getTime());
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 1) {
+      console.log(`⏳ Skipping email — only ${diffDays} day(s) since last sent.`);
       return;
     }
   }
 
   const verificationLink = `https://deadmanstabdev.netlify.app/.netlify/functions/verifyUser?userId=${encodeURIComponent(userId)}`;
-
   console.log(`🔗 Sending verification link to ${email}: ${verificationLink}`);
 
   try {
@@ -85,7 +82,6 @@ export const sendVerificationEmail = async (email: string, userId: string) => {
   }
 };
 
-// ✅ Netlify HTTP handler fallback
 const sendVerificationEmailHandler: Handler = async (
   event: HandlerEvent,
   _context: HandlerContext
