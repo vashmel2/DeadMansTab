@@ -1,4 +1,3 @@
-import { schedule } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
 import fetch from 'node-fetch';
 
@@ -85,4 +84,5 @@ const handler = async () => {
   };
 };
 
-export const handler = schedule('@daily', handler);
+// ⛳️ TEMPORARY: expose for manual testing
+export { handler };
