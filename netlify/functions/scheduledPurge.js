@@ -135,3 +135,5 @@ const handler = async (event, context) => {
 
 // Export wrapped in schedule for automatic running
 export const handler = schedule('@daily', handler);
+
+// Remember to fix this after testing Scheduled Emails Manually
