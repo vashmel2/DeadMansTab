@@ -67,37 +67,44 @@ export const handler: Handler = async (event) => {
       ? new Date(clicks[clicks.length - 1].timestamp)
       : null;
 
-    const lastEmailSent = user.lastEmailSent
-      ? new Date(user.lastEmailSent)
-      : new Date(user.created_at);
+    // Use either snake_case or camelCase from user object
+    const rawLastEmailSent = user.last_email_sent ?? user.lastEmailSent ?? null;
+
+    let lastEmailSentDate: Date | null = null;
+    if (rawLastEmailSent) {
+      const parsedDate = new Date(rawLastEmailSent);
+      lastEmailSentDate = isNaN(parsedDate.getTime()) ? null : parsedDate;
+    }
+    if (!lastEmailSentDate) {
+      lastEmailSentDate = user.created_at ? new Date(user.created_at) : null;
+    }
 
     const now = new Date();
-    const referenceDate = lastClick || lastEmailSent;
+    const referenceDate = lastClick || lastEmailSentDate || now; // fallback to now just in case
+
     const daysPassed = Math.floor((now.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
     const purgeAfterDays = user.purge_after_days ?? 0;
     const daysRemaining = Math.max(0, purgeAfterDays - daysPassed);
 
-
     const shouldPurge = user.purged || daysRemaining === 0;
 
     const response = {
-  success: true,
-  shouldPurge,
-  daysRemaining,
-  isVerified: user.verified || false,
+      success: true,
+      shouldPurge,
+      daysRemaining,
+      isVerified: user.verified || false,
 
-  // ✅ All Supabase columns
-  id: user.id,
-  email: user.email,
-  purge_after_days: user.purge_after_days,
-  created_at: user.created_at,
-  last_verified: user.last_verified,
-  verified: user.verified,
-  last_email_sent: user.lastEmailSent,
-  purged: user.purged,
-  purged_at: user.purged_at,
-};
-
+      // Supabase columns
+      id: user.id,
+      email: user.email,
+      purge_after_days: user.purge_after_days,
+      created_at: user.created_at,
+      last_verified: user.last_verified,
+      verified: user.verified,
+      last_email_sent: lastEmailSentDate ? lastEmailSentDate.toISOString() : null,
+      purged: user.purged,
+      purged_at: user.purged_at,
+    };
 
     console.log('✅ Returning API Response:', response);
 
