@@ -32,10 +32,11 @@ export const sendVerificationEmail = async (email: string, userId: string) => {
 
   if (lastEmailSent) {
     const diffTime = Math.abs(now.getTime() - lastEmailSent.getTime());
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const diffMinutes = Math.floor(diffTime / (1000 * 60));
 
-    if (diffDays < 1) {
-      console.log(`⏳ Skipping email — only ${diffDays} day(s) since last sent.`);
+    // ⚠️ TEMPORARILY allow emails every 2 minutes for testing
+    if (diffMinutes < 2) {
+      console.log(`⏳ Skipping email — only ${diffMinutes} minute(s) since last sent.`);
       return;
     }
   }

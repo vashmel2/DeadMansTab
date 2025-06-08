@@ -58,36 +58,37 @@ async function runScheduledPurge() {
       continue;
     }
 
-    // Daily email reminder
-    if (diffSinceEmail >= 1) {
-      const daysRemaining = Math.ceil(purgeAfterDays - diffSinceVerification);
+    // === Email condition modified for testing ===
+    // ORIGINAL:
+    // if (diffSinceEmail >= 1) {
+    // TESTING: Always send
+    const daysRemaining = Math.ceil(purgeAfterDays - diffSinceVerification);
 
-      try {
-        const res = await fetch(`${process.env.SITE_URL}/.netlify/functions/sendVerificationEmail`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: user.email,
-            userId: user.id,
-            daysRemaining,
-            isVerified: user.verified,
-          }),
-        });
+    try {
+      const res = await fetch(`${process.env.SITE_URL}/.netlify/functions/sendVerificationEmail`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          userId: user.id,
+          daysRemaining,
+          isVerified: user.verified,
+        }),
+      });
 
-        if (res.ok) {
-          await supabase
-            .from('users')
-            .update({ last_email_sent: now.toISOString() })
-            .eq('id', user.id);
+      if (res.ok) {
+        await supabase
+          .from('users')
+          .update({ last_email_sent: now.toISOString() })
+          .eq('id', user.id);
 
-          console.log(`📬 Sent verification email to ${user.email}`);
-        } else {
-          const errMsg = await res.text();
-          console.warn(`⚠️ Failed to send email to ${user.email}:`, errMsg);
-        }
-      } catch (err) {
-        console.error(`❌ Error sending email to ${user.email}:`, err);
+        console.log(`📬 Sent verification email to ${user.email}`);
+      } else {
+        const errMsg = await res.text();
+        console.warn(`⚠️ Failed to send email to ${user.email}:`, errMsg);
       }
+    } catch (err) {
+      console.error(`❌ Error sending email to ${user.email}:`, err);
     }
   }
 
