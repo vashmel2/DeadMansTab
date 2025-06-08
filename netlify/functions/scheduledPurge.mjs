@@ -6,9 +6,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const now = new Date();
-
 async function runScheduledPurge() {
+  const now = new Date();
+
   if (!process.env.SITE_URL) {
     throw new Error('Missing SITE_URL environment variable');
   }
@@ -58,10 +58,6 @@ async function runScheduledPurge() {
       continue;
     }
 
-    // === Email condition modified for testing ===
-    // ORIGINAL:
-    // if (diffSinceEmail >= 1) {
-    // TESTING: Always send
     const daysRemaining = Math.ceil(purgeAfterDays - diffSinceVerification);
 
     try {
@@ -95,7 +91,8 @@ async function runScheduledPurge() {
   return { message: 'Scheduled purge and email check completed' };
 }
 
-export const handler = schedule('@daily', async () => {
+// 🔁 Run every 2 minutes for testing
+export const handler = schedule('*/2 * * * *', async () => {
   console.log('🕒 scheduledPurge triggered');
   try {
     const result = await runScheduledPurge();
