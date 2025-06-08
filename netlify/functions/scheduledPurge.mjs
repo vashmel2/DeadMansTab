@@ -60,39 +60,44 @@ async function runScheduledPurge() {
 
     const daysRemaining = Math.ceil(purgeAfterDays - diffSinceVerification);
 
-    try {
-      const res = await fetch(`${process.env.SITE_URL}/.netlify/functions/sendVerificationEmail`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: user.email,
-          userId: user.id,
-          daysRemaining,
-          isVerified: user.verified,
-        }),
-      });
+    // Only send email if it has been more than 1 day since last email
+    if (diffSinceEmail >= 1) {
+      try {
+        const res = await fetch(`${process.env.SITE_URL}/.netlify/functions/sendVerificationEmail`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: user.email,
+            userId: user.id,
+            daysRemaining,
+            isVerified: user.verified,
+          }),
+        });
 
-      if (res.ok) {
-        await supabase
-          .from('users')
-          .update({ last_email_sent: now.toISOString() })
-          .eq('id', user.id);
+        if (res.ok) {
+          await supabase
+            .from('users')
+            .update({ last_email_sent: now.toISOString() })
+            .eq('id', user.id);
 
-        console.log(`📬 Sent verification email to ${user.email}`);
-      } else {
-        const errMsg = await res.text();
-        console.warn(`⚠️ Failed to send email to ${user.email}:`, errMsg);
+          console.log(`📬 Sent verification email to ${user.email}`);
+        } else {
+          const errMsg = await res.text();
+          console.warn(`⚠️ Failed to send email to ${user.email}:`, errMsg);
+        }
+      } catch (err) {
+        console.error(`❌ Error sending email to ${user.email}:`, err);
       }
-    } catch (err) {
-      console.error(`❌ Error sending email to ${user.email}:`, err);
+    } else {
+      console.log(`⏳ Skipping email for ${user.email}, sent less than 1 day ago.`);
     }
   }
 
   return { message: 'Scheduled purge and email check completed' };
 }
 
-// 🔁 Run every 2 minutes for testing
-export const handler = schedule('*/2 * * * *', async () => {
+// 🔁 Run once daily at 00:05 UTC (adjust time as you like)
+export const handler = schedule('5 0 * * *', async () => {
   console.log('🕒 scheduledPurge triggered');
   try {
     const result = await runScheduledPurge();
