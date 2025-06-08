@@ -1,23 +1,17 @@
-const { schedule } = require('@netlify/functions');
-const { createClient } = require('@supabase/supabase-js');
-const fetch = require('node-fetch');
+import { schedule } from '@netlify/functions';
+import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+const now = new Date();
 
 async function runScheduledPurge() {
   if (!process.env.SITE_URL) {
     throw new Error('Missing SITE_URL environment variable');
   }
-
-  const now = new Date();
 
   const { data: users, error } = await supabase
     .from('users')
@@ -35,8 +29,8 @@ async function runScheduledPurge() {
   for (const user of users) {
     console.log('🔍 Processing user:', user.id, user.email);
 
-    let lastVerified = user.last_verified ? new Date(user.last_verified) : null;
-    let lastEmailSent = user.last_email_sent ? new Date(user.last_email_sent) : null;
+    const lastVerified = user.last_verified ? new Date(user.last_verified) : null;
+    const lastEmailSent = user.last_email_sent ? new Date(user.last_email_sent) : null;
 
     if (!lastVerified) {
       console.warn(`⚠️ User ${user.id} has no valid last_verified date, skipping`);
@@ -44,9 +38,9 @@ async function runScheduledPurge() {
     }
 
     const purgeAfterDays = user.purge_after_days || 0;
-    const diffSinceVerification = (now.getTime() - lastVerified.getTime()) / (1000 * 60 * 60 * 24);
+    const diffSinceVerification = (now - lastVerified) / (1000 * 60 * 60 * 24);
     const diffSinceEmail = lastEmailSent
-      ? (now.getTime() - lastEmailSent.getTime()) / (1000 * 60 * 60 * 24)
+      ? (now - lastEmailSent) / (1000 * 60 * 60 * 24)
       : Infinity;
 
     // Purge condition
@@ -64,7 +58,7 @@ async function runScheduledPurge() {
       continue;
     }
 
-    // Daily reminder email condition
+    // Daily email reminder
     if (diffSinceEmail >= 1) {
       const daysRemaining = Math.ceil(purgeAfterDays - diffSinceVerification);
 
@@ -100,8 +94,7 @@ async function runScheduledPurge() {
   return { message: 'Scheduled purge and email check completed' };
 }
 
-// **IMPORTANT**: Export the scheduled handler as `handler`
-const handler = schedule('@daily', async () => {
+export const handler = schedule('@daily', async () => {
   console.log('🕒 scheduledPurge triggered');
   try {
     const result = await runScheduledPurge();
@@ -118,5 +111,3 @@ const handler = schedule('@daily', async () => {
     };
   }
 });
-
-module.exports = { handler };
