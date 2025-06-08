@@ -1,5 +1,5 @@
+import { schedule } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
-import fetch from 'node-fetch';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -30,7 +30,7 @@ const handler = async () => {
     const diffSinceVerification = (now - lastVerified) / (1000 * 60 * 60 * 24);
     const diffSinceEmail = lastEmailSent ? (now - lastEmailSent) / (1000 * 60 * 60 * 24) : Infinity;
 
-    // 🧹 Purge user if past the purge_after_days threshold
+    // 🧹 Purge logic
     if (diffSinceVerification >= purgeAfterDays) {
       const { error: updateError } = await supabase
         .from('users')
@@ -42,10 +42,10 @@ const handler = async () => {
       } else {
         console.log(`✅ User ${user.id} purged successfully.`);
       }
-      continue; // skip emailing if already purged
+      continue;
     }
 
-    // ✉️ Send daily verification email if 24+ hours have passed
+    // ✉️ Send daily email
     if (diffSinceEmail >= 1) {
       const daysRemaining = Math.ceil(purgeAfterDays - diffSinceVerification);
 
@@ -69,7 +69,8 @@ const handler = async () => {
 
           console.log(`📬 Sent verification email to ${user.email}`);
         } else {
-          console.warn(`⚠️ Failed to send email to ${user.email}:`, await res.text());
+          const errMsg = await res.text();
+          console.warn(`⚠️ Failed to send email to ${user.email}:`, errMsg);
         }
       } catch (err) {
         console.error(`❌ Error sending email to ${user.email}:`, err);
@@ -84,5 +85,4 @@ const handler = async () => {
   };
 };
 
-// ⛳️ TEMPORARY: expose for manual testing
-export { handler };
+export const handler = schedule('@daily', handler);
