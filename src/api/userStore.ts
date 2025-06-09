@@ -8,17 +8,20 @@ export type User = {
   lastEmailSent?: string | null;
   isVerified: boolean;
   purged?: boolean;
+  extension_id?: string | null; // ✅ Added this field
 };
 
-// Register a new user in Supabase users table
+// ✅ Register a new user in Supabase users table
 export async function registerUser({
   userId,
   email,
   purgeAfterDays,
+  extensionId,
 }: {
   userId: string;
   email: string;
   purgeAfterDays: number;
+  extensionId?: string | null;
 }) {
   const { data, error } = await supabase
     .from('users')
@@ -28,6 +31,7 @@ export async function registerUser({
       purgeAfterDays,
       isVerified: false,
       lastEmailSent: new Date().toISOString(),
+      extension_id: extensionId ?? null, // ✅ Properly insert extension ID
     });
 
   if (error) {
@@ -37,7 +41,7 @@ export async function registerUser({
   return data;
 }
 
-// Get user by userId from Supabase
+// ✅ Get user by userId from Supabase
 export async function getUser(userId: string): Promise<User | null> {
   const { data, error } = await supabase
     .from('users')
@@ -52,7 +56,7 @@ export async function getUser(userId: string): Promise<User | null> {
   return data as User;
 }
 
-// ✅ New: Get user by email
+// ✅ Get user by email
 export async function getUserByEmail(email: string): Promise<User | null> {
   const { data, error } = await supabase
     .from('users')
@@ -67,7 +71,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
   return data as User;
 }
 
-// Update lastEmailSent timestamp for user
+// ✅ Update lastEmailSent timestamp for user
 export async function updateLastEmailSent(userId: string) {
   const { error } = await supabase
     .from('users')
@@ -80,7 +84,7 @@ export async function updateLastEmailSent(userId: string) {
   }
 }
 
-// Set user as verified
+// ✅ Set user as verified
 export async function setUserVerified(userId: string) {
   const { error } = await supabase
     .from('users')

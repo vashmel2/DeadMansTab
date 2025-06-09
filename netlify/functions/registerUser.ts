@@ -1,13 +1,10 @@
 import { Handler } from '@netlify/functions';
 import { Resend } from 'resend';
-import { createClient } from '@supabase/supabase-js';
 import { sendVerificationEmail } from './sendVerificationEmail';
+import { supabase } from '../../src/lib/supabaseClient';
+import { registerUser } from '../../src/lib/userStore';
 
-// 🔑 Initialize Resend and Supabase
 const resend = new Resend(process.env.RESEND_API_KEY!);
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 // 🌐 CORS configuration
 const corsHeaders = {
@@ -35,16 +32,12 @@ export const handler: Handler = async (event) => {
     const rawData = JSON.parse(event.body || '{}');
     const email = rawData.email;
     const purgeAfterDays = rawData.purgeAfterDays ?? rawData.purge_after_days;
-    const extensionId = rawData.extension_id ?? null;
+    const extensionId = rawData.extensionId ?? rawData.extension_id ?? null;
 
     // 🔍 Log incoming data
-    console.log('📨 Incoming data:', {
-      email,
-      purgeAfterDays,
-      extensionId,
-    });
+    console.log('📨 Incoming data:', { email, purgeAfterDays, extensionId });
 
-    // 📋 Validation
+    // 🧪 Validation
     if (!email || !purgeAfterDays) {
       return {
         statusCode: 400,
@@ -90,26 +83,16 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // ✅ Insert new user
-    const { data: insertedUser, error: insertError } = await supabase
-      .from('users')
-      .insert({
-        email,
-        purge_after_days: purgeAfterDays,
-        extension_id: extensionId,
-        verified: false,
-        last_verified: null,
-        created_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
+    // 🔑 Generate a UUID for the new user (matches the ID column)
+    const userId = crypto.randomUUID();
 
-    if (insertError || !insertedUser) {
-      console.error('❌ Supabase insert error:', insertError);
-      throw new Error('Failed to register user');
-    }
-
-    const userId = insertedUser.id;
+    // ✅ Create user using shared helper
+    await registerUser({
+      userId,
+      email,
+      purgeAfterDays,
+      extensionId,
+    });
 
     // 📬 Send welcome email
     try {
