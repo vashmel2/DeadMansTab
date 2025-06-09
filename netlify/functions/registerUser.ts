@@ -2,7 +2,6 @@ import { Handler } from '@netlify/functions';
 import { Resend } from 'resend';
 import { sendVerificationEmail } from './sendVerificationEmail';
 import { supabase } from '../../src/lib/supabaseClient';
-import { registerUser } from '../../src/lib/userStore';
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
 
