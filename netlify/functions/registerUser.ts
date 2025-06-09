@@ -35,6 +35,7 @@ export const handler: Handler = async (event) => {
     const rawData = JSON.parse(event.body || '');
     const email = rawData.email;
     const purgeAfterDays = rawData.purgeAfterDays ?? rawData.purge_after_days;
+    const extensionId = rawData.extension_id ?? null;
 
     if (!email || !purgeAfterDays) {
       return {
@@ -87,6 +88,7 @@ export const handler: Handler = async (event) => {
       .insert({
         email,
         purge_after_days: purgeAfterDays,
+        extension_id: extensionId, // ✅ Confirmed this is already included
         verified: false,
         last_verified: null,
         created_at: new Date().toISOString(),
