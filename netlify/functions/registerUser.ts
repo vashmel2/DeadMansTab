@@ -1,15 +1,15 @@
 import { Handler } from '@netlify/functions';
 import { Resend } from 'resend';
 import { createClient } from '@supabase/supabase-js';
-import { UserData } from '../../src/types';
 import { sendVerificationEmail } from './sendVerificationEmail';
 
+// 🔑 Initialize Resend and Supabase
 const resend = new Resend(process.env.RESEND_API_KEY!);
-
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
+// 🌐 CORS configuration
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
@@ -17,7 +17,7 @@ const corsHeaders = {
 };
 
 export const handler: Handler = async (event) => {
-  console.log("📩 registerUser function hit");
+  console.log('📩 registerUser function hit');
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: corsHeaders, body: '' };
@@ -32,11 +32,12 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    const rawData = JSON.parse(event.body || '');
+    const rawData = JSON.parse(event.body || '{}');
     const email = rawData.email;
     const purgeAfterDays = rawData.purgeAfterDays ?? rawData.purge_after_days;
     const extensionId = rawData.extension_id ?? null;
 
+    // 📋 Validation
     if (!email || !purgeAfterDays) {
       return {
         statusCode: 400,
@@ -82,13 +83,13 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // ✅ Insert user and return ID
-    const { data: insertedUsers, error: insertError } = await supabase
+    // ✅ Insert new user
+    const { data: insertedUser, error: insertError } = await supabase
       .from('users')
       .insert({
         email,
         purge_after_days: purgeAfterDays,
-        extension_id: extensionId, // ✅ Confirmed this is already included
+        extension_id: extensionId,
         verified: false,
         last_verified: null,
         created_at: new Date().toISOString(),
@@ -96,12 +97,12 @@ export const handler: Handler = async (event) => {
       .select('id')
       .single();
 
-    if (insertError || !insertedUsers) {
+    if (insertError || !insertedUser) {
       console.error('❌ Supabase insert error:', insertError);
       throw new Error('Failed to register user');
     }
 
-    const userId = insertedUsers.id;
+    const userId = insertedUser.id;
 
     // 📬 Send welcome email
     try {
@@ -119,14 +120,15 @@ export const handler: Handler = async (event) => {
         `,
       });
     } catch (emailError) {
-      console.error("⚠️ Welcome email sending failed:", emailError);
+      console.error('⚠️ Welcome email sending failed:', emailError);
+      // Not throwing — allow verification email to still go out
     }
 
     // 🔐 Send verification email
     try {
       await sendVerificationEmail(email, userId);
     } catch (verifError) {
-      console.error("⚠️ Verification email sending failed:", verifError);
+      console.error('⚠️ Verification email sending failed:', verifError);
     }
 
     return {
