@@ -37,6 +37,13 @@ export const handler: Handler = async (event) => {
     const purgeAfterDays = rawData.purgeAfterDays ?? rawData.purge_after_days;
     const extensionId = rawData.extension_id ?? null;
 
+    // 🔍 Log incoming data
+    console.log('📨 Incoming data:', {
+      email,
+      purgeAfterDays,
+      extensionId,
+    });
+
     // 📋 Validation
     if (!email || !purgeAfterDays) {
       return {
@@ -121,7 +128,6 @@ export const handler: Handler = async (event) => {
       });
     } catch (emailError) {
       console.error('⚠️ Welcome email sending failed:', emailError);
-      // Not throwing — allow verification email to still go out
     }
 
     // 🔐 Send verification email
